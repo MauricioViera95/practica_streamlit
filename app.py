@@ -76,7 +76,7 @@ def fetch_agg_servidor():
     return df
 
 # ----------------------------
-# UI: encabezado “impactante”
+# UI: encabezado
 # ----------------------------
 st.markdown(
     """
@@ -89,7 +89,7 @@ st.markdown(
           Sistema Nacional de Áreas Protegidas (SNAP)
         </div>
         <div style="opacity:.75; font-size:14px;">
-          Superficie total (ha)
+          Superficie total (ha) · Fuente: FeatureServer DMQ
         </div>
       </div>
     </div>
@@ -105,15 +105,57 @@ if agg.empty or "nam" not in agg or "superf_ha" not in agg:
     st.error("No se obtuvieron datos. Verifica el servicio o los campos.")
     st.stop()
 
-# KPIs
+# KPIs (RESPONSIVOS, sin truncado)
 total_ha = agg["superf_ha"].sum()
 n_areas = len(agg)
+total_ha_str = f"{total_ha:,.0f} ha"   # p.ej., 18,326 ha
+n_areas_str  = f"{n_areas:,}"
+
+st.markdown("""
+<style>
+.kpi {
+  background: white;
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+  padding: 12px 14px;
+}
+.kpi .label {
+  font-size: 12px;
+  color: rgba(0,0,0,0.6);
+  margin-bottom: 4px;
+}
+.kpi .value {
+  font-weight: 800;
+  white-space: nowrap;         /* evita corte */
+  overflow: visible;           /* sin elipsis */
+  text-overflow: clip;         /* sin ... */
+  font-size: clamp(16px, 4vw, 28px);  /* responsivo */
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
+}
+@media (max-width: 520px) {
+  .kpi { padding: 10px 12px; }
+  .kpi .value { font-size: clamp(15px, 5vw, 24px); }
+}
+</style>
+""", unsafe_allow_html=True)
 
 k1, k2, _ = st.columns([1, 1, 6])
 with k1:
-    st.metric("Superficie total", f"{total_ha:,.0f} ha")
+    st.markdown(f"""
+    <div class="kpi">
+      <div class="label">Superficie total</div>
+      <div class="value">{total_ha_str}</div>
+    </div>
+    """, unsafe_allow_html=True)
 with k2:
-    st.metric("Áreas protegidas", f"{n_areas:,}")
+    st.markdown(f"""
+    <div class="kpi">
+      <div class="label">Áreas protegidas</div>
+      <div class="value">{n_areas_str}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # Selector
 selected_name = st.selectbox(
@@ -129,19 +171,13 @@ selected_name = st.selectbox(
 left, right = st.columns([7, 3], gap="large")
 
 with left:
-    # --- ORDEN ---
-    # Queremos la mayor arriba. Definimos explícitamente el orden de categorías:
+    # Orden explícito del eje Y (mayor→menor)
     y_order_top_first = agg["nam"].tolist()  # ya viene mayor→menor por el sort previo
 
-    # Para construir colores verdes de claro (menor) a oscuro (mayor):
-    # Creamos posiciones equiespaciadas y las mapeamos a la escala "Greens".
+    # Colores verdes de claro (menor) a oscuro (mayor arriba)
     n = len(agg)
     positions = [i/(n-1) if n > 1 else 1.0 for i in range(n)]
-    # Como y_order_top_first es mayor→menor, queremos más oscuro al inicio (arriba).
-    # sample_colorscale asigna positions en orden; usamos directamente:
-    base_colors_desc = sample_colorscale("Greens", positions)  # pos=0 -> más claro, pos=1 -> más oscuro
-    # Invertimos para que la primera (mayor) sea la más oscura:
-    base_colors_desc = base_colors_desc[::-1]
+    base_colors_desc = sample_colorscale("Greens", positions)[::-1]  # invertimos para que la primera sea la más oscura
 
     # Opacidad y línea según selección
     if selected_name:
@@ -153,7 +189,6 @@ with left:
         line_colors = ["rgba(0,0,0,0.25)"] * len(y_order_top_first)
         line_widths = [0.8] * len(y_order_top_first)
 
-    # Plotly requiere un DataFrame ordenado como se graficará
     dff_plot = agg.copy()  # mayor→menor
 
     fig = px.bar(
@@ -164,7 +199,7 @@ with left:
         labels={"nam": "Área protegida", "superf_ha": "Superficie (ha)"},
     )
 
-    # Barras más delgadas: mayor separación
+    # Barras más delgadas
     fig.update_layout(
         template="plotly_white",
         height=min(900, max(420, 24 * len(dff_plot) + 140)),
@@ -181,18 +216,17 @@ with left:
         hovertemplate="<b>%{y}</b><br>Área: %{x:,.2f} ha<extra></extra>",
         text=[f"{v:,.1f} ha" for v in dff_plot["superf_ha"]],
         textposition="outside",
-        textfont=dict(color="rgba(21,93,39,0.9)", size=11)  # verdoso
+        textfont=dict(color="rgba(21,93,39,0.9)", size=11)
     )
     # Opacidad por barra
     fig.data[0].marker.update(opacity=opacities)
 
-    # --- Forzar orden para que la mayor quede ARRIBA ---
-    # Usamos 'array' + 'categoryarray' en el eje Y con la lista mayor→menor.
+    # Forzar orden para que la mayor quede ARRIBA
     fig.update_yaxes(
         title_text="Área protegida",
         categoryorder="array",
-        categoryarray=y_order_top_first,  # este orden se respeta
-        autorange="reversed",             # con array, reversed pone la primera categoría ARRIBA
+        categoryarray=y_order_top_first,  # orden mayor→menor
+        autorange="reversed",             # la primera de la lista queda ARRIBA
         gridcolor="rgba(0,0,0,0.04)",
         showline=True, linewidth=1, linecolor="rgba(0,0,0,0.35)",
     )
@@ -236,4 +270,3 @@ with right:
         )
     else:
         st.info("Selecciona un área para ver sus datos")
-
