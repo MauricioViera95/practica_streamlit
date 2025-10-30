@@ -89,7 +89,7 @@ st.markdown(
           Sistema Nacional de Áreas Protegidas (SNAP)
         </div>
         <div style="opacity:.75; font-size:14px;">
-          Superficie total (ha) · Fuente: FeatureServer DMQ
+          Superficie total (ha)
         </div>
       </div>
     </div>
@@ -108,7 +108,7 @@ if agg.empty or "nam" not in agg or "superf_ha" not in agg:
 # KPIs (RESPONSIVOS, sin truncado)
 total_ha = agg["superf_ha"].sum()
 n_areas = len(agg)
-total_ha_str = f"{total_ha:,.0f} ha"   # p.ej., 18,326 ha
+total_ha_str = f"{total_ha:,.1f} ha"  #
 n_areas_str  = f"{n_areas:,}"
 
 st.markdown("""
@@ -270,3 +270,4 @@ with right:
         )
     else:
         st.info("Selecciona un área para ver sus datos")
+
