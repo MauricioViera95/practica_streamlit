@@ -108,13 +108,14 @@ if agg.empty or "nam" not in agg or "superf_ha" not in agg:
 total_ha = agg["superf_ha"].sum()
 n_areas = len(agg)
 
-# >>> FORMATO solicitado <<<
-# - Superficie total: 1 decimal, sin separadores de miles -> "18.3 ha"
-# - Áreas protegidas: entero sin separar (o ajusta a gusto)
-total_ha_str = f"{total_ha:.1f} ha"
-n_areas_str  = f"{n_areas:d}"
+# Formatos:
+# - Superficie total: con separador de miles (",") y 1 decimal -> p.ej. "18,326.3 ha"
+# - Áreas protegidas: entero con separador de miles -> p.ej. "1,234"
+total_ha_str = f"{total_ha:,.1f} ha"
+n_areas_str  = f"{n_areas:,}"
 
-# CSS KPIs: mantener tamaño del LABEL; reducir solo el VALOR (en negrita)
+# CSS KPIs: no reducir tamaño del LABEL; reducir solo el VALOR
+# además, evitar salto de línea en label (nowrap)
 st.markdown("""
 <style>
 .kpi {
@@ -125,24 +126,24 @@ st.markdown("""
   padding: 10px 12px;
 }
 .kpi .label {
-  font-size: 12px;                 /* se mantiene */
+  font-size: 12px;                 /* mantiene tamaño */
   color: rgba(0,0,0,0.6);
   margin-bottom: 2px;
+  white-space: nowrap;             /* NO wrap para el label */
 }
 .kpi .value {
   font-weight: 800;                /* negrita */
-  white-space: nowrap;
+  white-space: nowrap;             /* no wrap para el valor */
   overflow: visible;
   text-overflow: clip;
-  /* más pequeño SOLO el valor para embebidos */
-  font-size: clamp(14px, 2.4vw, 18px);
+  font-size: clamp(14px, 2.4vw, 18px);  /* más pequeño SOLO el valor, para embeds */
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.15px;
   line-height: 1.1;
 }
 @media (max-width: 520px) {
   .kpi { padding: 8px 10px; }
-  .kpi .label { font-size: 12px; } /* igual que desktop */
+  .kpi .label { font-size: 12px; } /* mismo tamaño en móvil */
   .kpi .value { font-size: clamp(13px, 3.2vw, 17px); }
 }
 </style>
@@ -157,9 +158,10 @@ with k1:
     </div>
     """, unsafe_allow_html=True)
 with k2:
+    # Usamos &nbsp; para que NO rompa entre palabras
     st.markdown(f"""
     <div class="kpi">
-      <div class="label">Áreas protegidas</div>
+      <div class="label">Áreas&nbsp;protegidas</div>
       <div class="value">{n_areas_str}</div>
     </div>
     """, unsafe_allow_html=True)
@@ -215,13 +217,15 @@ with left:
         bargap=0.35,
     )
 
-    # Etiquetas y colores (etiquetas con 1 decimal; si quieres sin miles: usa f"{v:.1f} ha")
+    # Etiquetas de las barras:
+    #   - Si quieres 1 decimal sin miles en las etiquetas, usa f"{v:.1f} ha"
+    #   - Aquí dejo con miles + 1 decimal para coherencia visual
     fig.update_traces(
         marker_color=base_colors_desc,
         marker_line_color=line_colors,
         marker_line_width=line_widths,
         hovertemplate="<b>%{y}</b><br>Área: %{x:,.2f} ha<extra></extra>",
-        text=[f"{v:,.1f} ha" for v in dff_plot["superf_ha"]],  # 1 decimal en labels
+        text=[f"{v:,.1f} ha" for v in dff_plot["superf_ha"]],
         textposition="outside",
         textfont=dict(color="rgba(21,93,39,0.9)", size=11)
     )
