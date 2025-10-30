@@ -16,6 +16,20 @@ WHERE = "nam IS NOT NULL AND superf_ha IS NOT NULL"
 OUT_FIELDS = "nam,superf_ha,map,ror,rom,own"
 
 # ----------------------------
+# Utilidades de formato (ES)
+# ----------------------------
+def format_number_es(x, decimals=1):
+    """
+    Formatea con separador de miles '.' y decimal ','.
+    Ej.: 18326.345 -> '18.326,3'  (para decimals=1)
+    """
+    if x is None:
+        return ""
+    s = f"{x:,.{decimals}f}"           # '18,326.3' (formato US)
+    s = s.replace(",", "X").replace(".", ",").replace("X", ".")
+    return s
+
+# ----------------------------
 # Helpers
 # ----------------------------
 @st.cache_data(ttl=600, show_spinner=False)
@@ -89,7 +103,7 @@ st.markdown(
           Sistema Nacional de Áreas Protegidas (SNAP)
         </div>
         <div style="opacity:.75; font-size:14px;">
-          Superficie total (ha)
+          Superficie total (ha) · Fuente: FeatureServer DMQ
         </div>
       </div>
     </div>
@@ -105,12 +119,13 @@ if agg.empty or "nam" not in agg or "superf_ha" not in agg:
     st.error("No se obtuvieron datos. Verifica el servicio o los campos.")
     st.stop()
 
-# KPIs (RESPONSIVOS, sin truncado)
+# KPIs (RESPONSIVOS y en formato ES con 1 decimal)
 total_ha = agg["superf_ha"].sum()
 n_areas = len(agg)
-total_ha_str = f"{total_ha:,.1f} ha"  #
-n_areas_str  = f"{n_areas:,}"
+total_ha_str = f"{format_number_es(total_ha, 1)} ha"   # p.ej., '18.326,3 ha'
+n_areas_str  = format_number_es(n_areas, 0)            # p.ej., '42'
 
+# CSS para KPIs compactos (sin truncado)
 st.markdown("""
 <style>
 .kpi {
@@ -118,25 +133,27 @@ st.markdown("""
   border: 1px solid rgba(0,0,0,0.06);
   border-radius: 12px;
   box-shadow: 0 6px 18px rgba(0,0,0,0.06);
-  padding: 12px 14px;
+  padding: 10px 12px;
 }
 .kpi .label {
-  font-size: 12px;
+  font-size: 11px;
   color: rgba(0,0,0,0.6);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 .kpi .value {
   font-weight: 800;
-  white-space: nowrap;         /* evita corte */
-  overflow: visible;           /* sin elipsis */
-  text-overflow: clip;         /* sin ... */
-  font-size: clamp(16px, 4vw, 28px);  /* responsivo */
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  font-size: clamp(13px, 2.6vw, 20px);  /* más pequeño para embeds */
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.15px;
+  line-height: 1.1;
 }
 @media (max-width: 520px) {
-  .kpi { padding: 10px 12px; }
-  .kpi .value { font-size: clamp(15px, 5vw, 24px); }
+  .kpi { padding: 8px 10px; }
+  .kpi .value { font-size: clamp(12px, 3.6vw, 18px); }
+  .kpi .label { font-size: 10px; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -208,13 +225,13 @@ with left:
         bargap=0.35,
     )
 
-    # Aplicar colores, bordes y etiquetas
+    # Etiquetas y colores — AHORA en formato ES con 1 decimal
     fig.update_traces(
         marker_color=base_colors_desc,
         marker_line_color=line_colors,
         marker_line_width=line_widths,
-        hovertemplate="<b>%{y}</b><br>Área: %{x:,.2f} ha<extra></extra>",
-        text=[f"{v:,.1f} ha" for v in dff_plot["superf_ha"]],
+        hovertemplate="<b>%{y}</b><br>Área: %{x:,.2f} ha<extra></extra>",  # hover en US (más compacto); opcional cambiar
+        text=[f"{format_number_es(v, 1)} ha" for v in dff_plot["superf_ha"]],
         textposition="outside",
         textfont=dict(color="rgba(21,93,39,0.9)", size=11)
     )
@@ -270,4 +287,3 @@ with right:
         )
     else:
         st.info("Selecciona un área para ver sus datos")
-
