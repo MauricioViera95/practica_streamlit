@@ -1,6 +1,7 @@
 import requests, pandas as pd
 import streamlit as st
 import plotly.express as px
+from plotly.colors import sample_colorscale
 
 # ----------------------------
 # Config de página
@@ -70,6 +71,7 @@ def fetch_agg_servidor():
     # limpieza y orden
     if not df.empty:
         df["superf_ha"] = pd.to_numeric(df["superf_ha"], errors="coerce").fillna(0)
+        # Orden descendente: mayor a menor (usaremos esta secuencia para el eje Y)
         df = df.sort_values("superf_ha", ascending=False).reset_index(drop=True)
     return df
 
@@ -127,65 +129,81 @@ selected_name = st.selectbox(
 left, right = st.columns([7, 3], gap="large")
 
 with left:
-    # Para tener la mayor arriba: ordenar ASC y luego invertir eje Y
-    dff_plot = agg.sort_values("superf_ha", ascending=True).reset_index(drop=True)
+    # --- ORDEN ---
+    # Queremos la mayor arriba. Definimos explícitamente el orden de categorías:
+    y_order_top_first = agg["nam"].tolist()  # ya viene mayor→menor por el sort previo
 
-    # Color de marca principal
-    BRAND = "#27367c"
-    # Paleta monocromática suave (más claro para no seleccionados)
-    base_colors = [BRAND for _ in dff_plot["nam"]]
+    # Para construir colores verdes de claro (menor) a oscuro (mayor):
+    # Creamos posiciones equiespaciadas y las mapeamos a la escala "Greens".
+    n = len(agg)
+    positions = [i/(n-1) if n > 1 else 1.0 for i in range(n)]
+    # Como y_order_top_first es mayor→menor, queremos más oscuro al inicio (arriba).
+    # sample_colorscale asigna positions en orden; usamos directamente:
+    base_colors_desc = sample_colorscale("Greens", positions)  # pos=0 -> más claro, pos=1 -> más oscuro
+    # Invertimos para que la primera (mayor) sea la más oscura:
+    base_colors_desc = base_colors_desc[::-1]
 
     # Opacidad y línea según selección
     if selected_name:
-        opacities  = [1.0 if n == selected_name else 0.55 for n in dff_plot["nam"]]
-        line_colors = ["rgba(0,0,0,0.55)" if n == selected_name else "rgba(0,0,0,0.25)" for n in dff_plot["nam"]]
-        line_widths = [1.8 if n == selected_name else 0.8 for n in dff_plot["nam"]]
+        opacities  = [1.0 if n_ == selected_name else 0.55 for n_ in y_order_top_first]
+        line_colors = ["rgba(0,0,0,0.55)" if n_ == selected_name else "rgba(0,0,0,0.25)" for n_ in y_order_top_first]
+        line_widths = [1.8 if n_ == selected_name else 0.8 for n_ in y_order_top_first]
     else:
-        opacities = [0.85] * len(dff_plot)
-        line_colors = ["rgba(0,0,0,0.25)"] * len(dff_plot)
-        line_widths = [0.8] * len(dff_plot)
+        opacities = [0.85] * len(y_order_top_first)
+        line_colors = ["rgba(0,0,0,0.25)"] * len(y_order_top_first)
+        line_widths = [0.8] * len(y_order_top_first)
+
+    # Plotly requiere un DataFrame ordenado como se graficará
+    dff_plot = agg.copy()  # mayor→menor
 
     fig = px.bar(
         dff_plot,
-        x="superf_ha", y="nam",
+        x="superf_ha",
+        y="nam",
         orientation="h",
-        labels={"nam": "Área protegida", "superf_ha": "Superficie (ha)"}
+        labels={"nam": "Área protegida", "superf_ha": "Superficie (ha)"},
     )
-    # Barras "más delgadas": aumentar separación (bargap)
+
+    # Barras más delgadas: mayor separación
     fig.update_layout(
         template="plotly_white",
         height=min(900, max(420, 24 * len(dff_plot) + 140)),
         margin=dict(l=10, r=10, t=8, b=10),
         showlegend=False,
-        bargap=0.35,   # <- más espacio entre barras
+        bargap=0.35,
     )
+
+    # Aplicar colores, bordes y etiquetas
     fig.update_traces(
-        marker_color=base_colors,
+        marker_color=base_colors_desc,
         marker_line_color=line_colors,
         marker_line_width=line_widths,
         hovertemplate="<b>%{y}</b><br>Área: %{x:,.2f} ha<extra></extra>",
         text=[f"{v:,.1f} ha" for v in dff_plot["superf_ha"]],
         textposition="outside",
-        textfont=dict(color="rgba(0,0,0,0.75)", size=11)
+        textfont=dict(color="rgba(21,93,39,0.9)", size=11)  # verdoso
     )
     # Opacidad por barra
     fig.data[0].marker.update(opacity=opacities)
 
-    # Ejes y rejilla
+    # --- Forzar orden para que la mayor quede ARRIBA ---
+    # Usamos 'array' + 'categoryarray' en el eje Y con la lista mayor→menor.
+    fig.update_yaxes(
+        title_text="Área protegida",
+        categoryorder="array",
+        categoryarray=y_order_top_first,  # este orden se respeta
+        autorange="reversed",             # con array, reversed pone la primera categoría ARRIBA
+        gridcolor="rgba(0,0,0,0.04)",
+        showline=True, linewidth=1, linecolor="rgba(0,0,0,0.35)",
+    )
     fig.update_xaxes(
         title_text="Superficie (ha)",
         gridcolor="rgba(0,0,0,0.07)",
         zeroline=False,
         showline=True, linewidth=1, linecolor="rgba(0,0,0,0.35)"
     )
-    fig.update_yaxes(
-        title_text="Área protegida",
-        autorange="reversed",  # mayor arriba (porque ordenamos ASC)
-        gridcolor="rgba(0,0,0,0.04)",
-        showline=True, linewidth=1, linecolor="rgba(0,0,0,0.35)"
-    )
 
-    # Evitar corte de labels fuera del lienzo
+    # Evitar corte de labels
     fig.update_layout(xaxis=dict(constrain="domain"))
     fig.update_traces(cliponaxis=False)
 
@@ -200,17 +218,21 @@ with right:
         if not values:
             values = ["(sin información disponible)"]
         st.markdown(
-            f"""
+            """
             <div style="background:white;border:1px solid rgba(0,0,0,0.08);border-radius:12px;
                         box-shadow:0 6px 18px rgba(0,0,0,0.06);padding:14px;">
-              <div style="font-weight:800;color:{'#27367c'};margin-bottom:8px;text-align:center;">
-                {selected_name}
-              </div>
-              {''.join([f"<div style='padding:8px 10px;background:rgba(39,54,124,0.06);border-radius:8px;margin-bottom:6px;text-align:center'>{v}</div>" for v in values])}
+              <div style="font-weight:800;color:#155D27;margin-bottom:8px;text-align:center;">{name}</div>
+              {chips}
             </div>
-            """,
+            """.format(
+                name=selected_name,
+                chips="".join(
+                    f"<div style='padding:8px 10px;background:rgba(21,93,39,0.08);"
+                    f"border-radius:8px;margin-bottom:6px;text-align:center'>{v}</div>"
+                    for v in values
+                )
+            ),
             unsafe_allow_html=True
         )
     else:
         st.info("Selecciona un área para ver sus datos")
-
