@@ -116,7 +116,7 @@ with col_a:
     if st.button("🔄 Actualizar datos"):
         fetch_agg_servidor.clear()
         fetch_agg_cliente.clear()
-        st.experimental_rerun()
+        st.rerun()
 
 # Obtener datos
 if modo_agregacion.startswith("Servidor"):
@@ -218,4 +218,5 @@ with right:
             )
     else:
         st.info("Selecciona un área para ver sus datos")
+
 
