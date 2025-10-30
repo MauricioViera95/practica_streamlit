@@ -16,20 +16,6 @@ WHERE = "nam IS NOT NULL AND superf_ha IS NOT NULL"
 OUT_FIELDS = "nam,superf_ha,map,ror,rom,own"
 
 # ----------------------------
-# Utilidades de formato (ES)
-# ----------------------------
-def format_number_es(x, decimals=1):
-    """
-    Formatea con separador de miles '.' y decimal ','.
-    Ej.: 18326.345 -> '18.326,3'  (para decimals=1)
-    """
-    if x is None:
-        return ""
-    s = f"{x:,.{decimals}f}"           # '18,326.3' (formato US)
-    s = s.replace(",", "X").replace(".", ",").replace("X", ".")
-    return s
-
-# ----------------------------
 # Helpers
 # ----------------------------
 @st.cache_data(ttl=600, show_spinner=False)
@@ -55,7 +41,7 @@ def fetch_agg_servidor():
                 return v
         return None
 
-    # Descarga paginada sólo con campos de interés
+    # Descarga paginada con campos de interés
     params2 = {
         "f": "json",
         "where": WHERE,
@@ -85,8 +71,7 @@ def fetch_agg_servidor():
     # limpieza y orden
     if not df.empty:
         df["superf_ha"] = pd.to_numeric(df["superf_ha"], errors="coerce").fillna(0)
-        # Orden descendente: mayor a menor (usaremos esta secuencia para el eje Y)
-        df = df.sort_values("superf_ha", ascending=False).reset_index(drop=True)
+        df = df.sort_values("superf_ha", ascending=False).reset_index(drop=True)  # mayor→menor
     return df
 
 # ----------------------------
@@ -119,13 +104,17 @@ if agg.empty or "nam" not in agg or "superf_ha" not in agg:
     st.error("No se obtuvieron datos. Verifica el servicio o los campos.")
     st.stop()
 
-# KPIs (RESPONSIVOS y en formato ES con 1 decimal)
+# KPIs
 total_ha = agg["superf_ha"].sum()
 n_areas = len(agg)
-total_ha_str = f"{format_number_es(total_ha, 1)} ha"   # p.ej., '18.326,3 ha'
-n_areas_str  = format_number_es(n_areas, 0)            # p.ej., '42'
 
-# CSS para KPIs compactos (sin truncado)
+# >>> FORMATO solicitado <<<
+# - Superficie total: 1 decimal, sin separadores de miles -> "18.3 ha"
+# - Áreas protegidas: entero sin separar (o ajusta a gusto)
+total_ha_str = f"{total_ha:.1f} ha"
+n_areas_str  = f"{n_areas:d}"
+
+# CSS KPIs: mantener tamaño del LABEL; reducir solo el VALOR (en negrita)
 st.markdown("""
 <style>
 .kpi {
@@ -136,24 +125,25 @@ st.markdown("""
   padding: 10px 12px;
 }
 .kpi .label {
-  font-size: 11px;
+  font-size: 12px;                 /* se mantiene */
   color: rgba(0,0,0,0.6);
   margin-bottom: 2px;
 }
 .kpi .value {
-  font-weight: 800;
+  font-weight: 800;                /* negrita */
   white-space: nowrap;
   overflow: visible;
   text-overflow: clip;
-  font-size: clamp(13px, 2.6vw, 20px);  /* más pequeño para embeds */
+  /* más pequeño SOLO el valor para embebidos */
+  font-size: clamp(14px, 2.4vw, 18px);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.15px;
   line-height: 1.1;
 }
 @media (max-width: 520px) {
   .kpi { padding: 8px 10px; }
-  .kpi .value { font-size: clamp(12px, 3.6vw, 18px); }
-  .kpi .label { font-size: 10px; }
+  .kpi .label { font-size: 12px; } /* igual que desktop */
+  .kpi .value { font-size: clamp(13px, 3.2vw, 17px); }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -225,13 +215,13 @@ with left:
         bargap=0.35,
     )
 
-    # Etiquetas y colores — AHORA en formato ES con 1 decimal
+    # Etiquetas y colores (etiquetas con 1 decimal; si quieres sin miles: usa f"{v:.1f} ha")
     fig.update_traces(
         marker_color=base_colors_desc,
         marker_line_color=line_colors,
         marker_line_width=line_widths,
-        hovertemplate="<b>%{y}</b><br>Área: %{x:,.2f} ha<extra></extra>",  # hover en US (más compacto); opcional cambiar
-        text=[f"{format_number_es(v, 1)} ha" for v in dff_plot["superf_ha"]],
+        hovertemplate="<b>%{y}</b><br>Área: %{x:,.2f} ha<extra></extra>",
+        text=[f"{v:,.1f} ha" for v in dff_plot["superf_ha"]],  # 1 decimal en labels
         textposition="outside",
         textfont=dict(color="rgba(21,93,39,0.9)", size=11)
     )
