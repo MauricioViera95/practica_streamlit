@@ -88,7 +88,7 @@ st.markdown(
           Sistema Nacional de Áreas Protegidas (SNAP)
         </div>
         <div style="opacity:.75; font-size:14px;">
-          Superficie total (ha) · Fuente: FeatureServer DMQ
+          Superficie total (ha)
         </div>
       </div>
     </div>
@@ -281,3 +281,4 @@ with right:
         )
     else:
         st.info("Selecciona un área para ver sus datos")
+
